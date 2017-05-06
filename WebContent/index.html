@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Create Task</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular.min.js"></script>
+    <script src="index.js"></script>
+</head>
+<body data-ng-app="myApp" data-ng-controller="myCtrl">
+<h2>Create Task</h2>
+<form name="form" data-ng-submit="sendTask()">
+    <table>
+        <tr>
+            <td><label for="taskId">Task ID</label></td>
+            <td><input type="text" id="taskId" name="taskId" placeholder="taskId"
+                       data-ng-model="task.taskId" required autofocus/></td>
+        </tr>
+        <tr>
+            <td><label for="details1">Details 1</label></td>
+            <td><input type="details" id="details1" name="details1" placeholder="details1"
+                       data-ng-model="task.details1" required /></td>
+        </tr>
+        <tr>
+            <td><label for="details2">Details 2</label></td>
+            <td><input type="details" id="details2" name="details2" placeholder="details2"
+                       data-ng-model="task.details2" required /></td>
+        </tr>
+        <tr>
+            <td colspan="2"><label>{{errorMessage}}</label></td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <button type="submit" data-ng-disabled="form.$invalid">Send</button>
+            </td>
+        </tr>
+    </table>
+</form>
+</body>
+
+</html>
