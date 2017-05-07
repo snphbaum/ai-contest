@@ -1,31 +1,27 @@
 package org.byteforce.ai;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 
-import org.deeplearning4j.nn.api.OptimizationAlgorithm;
-import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
-import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
-import org.deeplearning4j.nn.conf.Updater;
-import org.deeplearning4j.nn.conf.layers.DenseLayer;
-import org.deeplearning4j.nn.conf.layers.OutputLayer;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
-import org.deeplearning4j.nn.weights.WeightInit;
-import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
-import org.nd4j.linalg.lossfunctions.LossFunctions;
 
 //TODO implement adversarial games
 
+
+
 /**
  * This class implements the learning algorithm
- *
  * Nd4j needs MKL ==> easiest installation
  * Add to Path D:\Software\IntelSWTools\compilers_and_libraries_2017.2.187\windows\redist\intel64_win\mkl\
  * JavaCpp best with clang (installer adds it to the path)
  * Anaconda has to be deinstalled (causes a clash with MKL)
  * Used BLAS Library can be checked via Nd4j API
  * CpuBlas.getBlasVendorId();
+ *
  * @author Philipp Baumgaertel
  */
 public class DeepQLearning
@@ -36,59 +32,32 @@ public class DeepQLearning
 
     private MultiLayerNetwork model;
 
+    private NeuralNetworkFactory networkFactory;
 
 
-    public DeepQLearning(ActionFactory pActionFactory, StateFactory pStateFactory)
+
+    public DeepQLearning(ActionFactory pActionFactory, StateFactory pStateFactory, NeuralNetworkFactory pNetworkFactory)
     {
         actionFactory = pActionFactory;
         stateFactory = pStateFactory;
-        initModel();
+        networkFactory = pNetworkFactory;
+        model = networkFactory.getNeuralNetwork(stateFactory.getInputLength(), actionFactory.getNumberOfActions());
     }
 
 
 
-    private void initModel()
+    private class Memory
     {
-
-        //TODO make number of layers and number of neurons configurable
-        //perhaps even a convolutional network?
-        int rngSeed = 123; // random number seed for reproducibility
-        double rate = 0.0015; // learning rate of the net
-
-        // @formatter:off
-        MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
-            .seed(rngSeed) //include a random seed for reproducibility
-            .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT) // use stochastic gradient descent as an optimization algorithm
-            .iterations(1)
-            .activation(Activation.LEAKYRELU)
-            .weightInit(WeightInit.RELU_UNIFORM)
-            .learningRate(rate) //specify the learning rate
-            .updater(Updater.RMSPROP).momentum(0.98) //specify the rate of change of the learning rate.
-            .regularization(true).l2(rate * 0.005) // regularize learning model
-            .list()
-            .layer(0, new DenseLayer.Builder() //create the first input layer.
-                .nIn(stateFactory.getInputLength()) // depends on the number of possible states
-                .nOut(164)
-                .build())
-            .layer(1, new DenseLayer.Builder() //create the second input layer
-                .nIn(164)
-                .nOut(150)
-                .build())
-            .layer(2, new DenseLayer.Builder() //create the second input layer
-                .nIn(150)
-                .nOut(150)
-                .build())
-            .layer(3, new OutputLayer.Builder(LossFunctions.LossFunction.MSE) //create hidden layer
-                .activation(Activation.IDENTITY)
-                .nIn(150)
-                .nOut(actionFactory.getNumberOfActions())
-                .build())
-            .pretrain(false).backprop(true) //use backpropagation to adjust weights
-            .build();
-        // @formatter:on
-
-        model = new MultiLayerNetwork(conf);
-        model.init();
+        Memory(State pState, Action pAction, double pReward, State pNewState){
+            state = pState;
+            action = pAction;
+            reward = pReward;
+            newState = pNewState;
+        }
+        State state;
+        Action action;
+        double reward;
+        State newState;
     }
 
 
@@ -100,7 +69,9 @@ public class DeepQLearning
         double epsilon = 1; // 1 = exploration (random), 0 = exploitation (use model), gets decreased during learning
         double gamma = 0.9; // eagerness 0 = prioritize early rewards, 1 = late rewards
         double alpha = 0.1; // learning rate of the q learner
-
+        int batchsize = 40;
+        int experienceBuffer = 100;
+        List<Memory> experience = new ArrayList<>(batchsize);
         // http://outlace.com/rlpart3.html
         // Learn
         for (int i = 0; i < pNumEpochs; i++) {
@@ -114,18 +85,46 @@ public class DeepQLearning
                 else {
                     a = Nd4j.argMax(qVal).getInt(0);
                 }
-                State new_s = s.move(actionFactory.get(a));
+                Action action = actionFactory.get(a);
+                State new_s = s.move(action);
 
                 INDArray newQVal = model.output(new_s.getInputRepresentation());
                 double maxQ = newQVal.maxNumber().doubleValue();
                 double reward = new_s.getReward();
-                double q = qVal.getDouble(a);
-                double update = (new_s.isFinal()) ? reward : q + alpha * (reward + (gamma * maxQ) - q);
-                qVal.putScalar(a, update);
-                model.fit(s.getInputRepresentation(), qVal);
+                //Experience replay
+                if(experience.size() < experienceBuffer){
+                    //Fill Buffer
+                    experience.add(new Memory(s,action, reward ,new_s));
+                    double q = qVal.getDouble(a);
+                    double update = (new_s.isFinal()) ? reward : q + alpha * (reward + (gamma * maxQ) - q);
+                    qVal.putScalar(a, update);
+                    model.fit(s.getInputRepresentation(), qVal);
+
+                }else {
+                    Collections.shuffle(experience);
+                    experience.set(0,new Memory(s,action, reward ,new_s));
+                    INDArray inputList = Nd4j.zeros(batchsize, stateFactory.getInputLength());
+                    INDArray outputList = Nd4j.zeros(batchsize, actionFactory.getNumberOfActions());
+                    for (int j = 0; j < batchsize; j++) {
+
+                        Memory memory = experience.get(j);
+                        INDArray mQVal = model.output(memory.state.getInputRepresentation());
+                        INDArray mNewQVal = model.output(memory.newState.getInputRepresentation());
+                        double mMaxQ = newQVal.maxNumber().doubleValue();
+                        double mReward = memory.newState.getReward();
+                        double q = mQVal.getDouble(memory.action.getType());
+                        double update = (memory.newState.isFinal()) ? mReward : q + alpha * (mReward + (gamma * mMaxQ) - q);
+                        mQVal.putScalar(a, update);
+                        inputList.putRow(j,memory.state.getInputRepresentation());
+                        outputList.putRow(j,mQVal);
+                        model.fit(inputList,outputList);
+                    }
+                }
+
                 s = new_s;
-                if (epsilon > 0.1)
+                if (epsilon > 0.1) {
                     epsilon -= (1.0 / pNumEpochs);
+                }
             }
             System.out.println(i * 100.0 / pNumEpochs + "%");
         }
@@ -147,7 +146,7 @@ public class DeepQLearning
                 State new_s = s.move(actionFactory.get(a));
 
                 double reward = new_s.getReward();
-                if(showSteps) {
+                if (showSteps) {
                     s.print();
                     System.out.println(qVal);
                     System.out.println(actionFactory.get(a));
@@ -156,7 +155,7 @@ public class DeepQLearning
                 s = new_s;
                 c++;
                 if (c > 10) {
-                    if(showSteps) {
+                    if (showSteps) {
                         System.out.println("Too many moves");
                     }
                     break;
@@ -166,7 +165,6 @@ public class DeepQLearning
                 wins++;
             }
         }
-        System.out.println("Wins: " + wins*100.0/pNumEpochs + "%");
+        System.out.println("Wins: " + wins * 100.0 / pNumEpochs + "%");
     }
-
 }

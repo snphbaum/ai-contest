@@ -8,6 +8,8 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.byteforce.ai.Action;
 import org.byteforce.ai.ActionFactory;
 import org.byteforce.ai.DeepQLearning;
+import org.byteforce.ai.NeuralNetworkFactory;
+import org.byteforce.ai.NeuralNetworkFactoryImpl;
 import org.byteforce.ai.State;
 import org.byteforce.ai.StateFactory;
 import org.nd4j.linalg.api.ndarray.INDArray;
@@ -254,7 +256,8 @@ public class GridWorld
        // System.out.println((new CpuBlas()).getBlasVendor());
         ActionFactory actionFactory = new GridWorldActionFactory();
         StateFactory stateFactory = new GridWorldRandomStateFactory();
-        DeepQLearning dql = new DeepQLearning(actionFactory, stateFactory);
+        NeuralNetworkFactory networkFactory = new NeuralNetworkFactoryImpl();
+        DeepQLearning dql = new DeepQLearning(actionFactory, stateFactory, networkFactory);
         dql.learn(10000);
         dql.play(10000, false);
 
