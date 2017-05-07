@@ -10,18 +10,9 @@ import org.byteforce.ai.ActionFactory;
 import org.byteforce.ai.DeepQLearning;
 import org.byteforce.ai.State;
 import org.byteforce.ai.StateFactory;
-import org.deeplearning4j.nn.api.OptimizationAlgorithm;
-import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
-import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
-import org.deeplearning4j.nn.conf.Updater;
-import org.deeplearning4j.nn.conf.layers.DenseLayer;
-import org.deeplearning4j.nn.conf.layers.OutputLayer;
-import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
-import org.deeplearning4j.nn.weights.WeightInit;
-import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.cpu.nativecpu.blas.CpuBlas;
 import org.nd4j.linalg.factory.Nd4j;
-import org.nd4j.linalg.lossfunctions.LossFunctions;
 
 
 /**
@@ -260,6 +251,7 @@ public class GridWorld
     public static void main(String[] args){
 
         // Inputs for the function
+       // System.out.println((new CpuBlas()).getBlasVendor());
         ActionFactory actionFactory = new GridWorldActionFactory();
         StateFactory stateFactory = new GridWorldRandomStateFactory();
         DeepQLearning dql = new DeepQLearning(actionFactory, stateFactory);
