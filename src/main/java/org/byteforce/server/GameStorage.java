@@ -12,7 +12,7 @@ import org.byteforce.server.DTOs.GameState;
 /**
  * @author Philipp Baumgaertel
  */
-// @Singleton
+// @Singleton //TODO doesn't work ==> fix
 // @Startup
 public class GameStorage
 {
