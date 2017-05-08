@@ -34,7 +34,13 @@ public class DeepQLearning
 
     private NeuralNetworkFactory networkFactory;
 
-
+    private int batchsize = 40;
+    private int experienceBuffer = 100;
+    private int percentEpochsWithoutReplay = 100;
+    private double epsilon = 1; // 1 = exploration (random), 0 = exploitation (use model), gets decreased during learning
+    private double gamma = 0.9; // eagerness 0 = prioritize early rewards, 1 = late rewards
+    private double alpha = 0.1; // learning rate of the q learner
+    private double endEpsilon = 0.1; // End value for the decrease of epsilon
 
     public DeepQLearning(ActionFactory pActionFactory, StateFactory pStateFactory, NeuralNetworkFactory pNetworkFactory)
     {
@@ -45,6 +51,35 @@ public class DeepQLearning
     }
 
 
+
+    /**
+     *
+     * @param pBatchsize Defines how many memories get replayed during experience replay (Default: 40)
+     * @param pExperienceBuffer Defines how many memories are stored as experience (Default: 100)
+     * @param pPercentEpochsWithoutReplay Defines how many epochs (in percent) are played without replay.
+     *        This is for performance reasons as the replay is very slow (Default: 99)
+     */
+    public void configureExperienceReplay(int pBatchsize, int pExperienceBuffer, int pPercentEpochsWithoutReplay){
+        batchsize = pBatchsize;
+        experienceBuffer = pExperienceBuffer;
+        percentEpochsWithoutReplay = pPercentEpochsWithoutReplay;
+    }
+
+    /**
+     *
+     * @param pStartEpsilon Start value for the exploration vs exploitation balance:
+     *        1 = exploration (random), 0 = exploitation (use model), gets decreased during learning (Default: 1)
+     * @param pEndEpsilon End value for the exploration vs exploitation balance. The balance gets decreased linearly.
+     *        (Default: 0.1)
+     * @param pAlpha Learning rate of the q learner (Default: 0.1)
+     * @param pGamma Eagerness: 0 = prioritize early rewards, 1 = late rewards (Default: 0.9)
+     */
+    public void configureLearning(double pStartEpsilon, double pEndEpsilon, double pAlpha, double pGamma){
+        epsilon = pStartEpsilon;
+        endEpsilon = pEndEpsilon;
+        alpha = pAlpha;
+        gamma = pGamma;
+    }
 
     private class Memory
     {
@@ -65,12 +100,9 @@ public class DeepQLearning
     public void learn(int pNumEpochs)
     {
         // TODO experiment with experience replay
+        // TODO implement prioritized experience replay (with bad predicted value vs real value difference)
         Random rand = new Random();
-        double epsilon = 1; // 1 = exploration (random), 0 = exploitation (use model), gets decreased during learning
-        double gamma = 0.9; // eagerness 0 = prioritize early rewards, 1 = late rewards
-        double alpha = 0.1; // learning rate of the q learner
-        int batchsize = 40;
-        int experienceBuffer = 100;
+        int numEpochsWithoutReplay = pNumEpochs*percentEpochsWithoutReplay/100;
         List<Memory> experience = new ArrayList<>(batchsize);
         // http://outlace.com/rlpart3.html
         // Learn
@@ -92,37 +124,47 @@ public class DeepQLearning
                 double maxQ = newQVal.maxNumber().doubleValue();
                 double reward = new_s.getReward();
                 //Experience replay
-                if(experience.size() < experienceBuffer){
-                    //Fill Buffer
-                    experience.add(new Memory(s,action, reward ,new_s));
+                // FIrst we train the model without replay as that is very slow
+                //TODO rewrite if cascade without duplicate code
+                if(i < numEpochsWithoutReplay) {
                     double q = qVal.getDouble(a);
                     double update = (new_s.isFinal()) ? reward : q + alpha * (reward + (gamma * maxQ) - q);
                     qVal.putScalar(a, update);
                     model.fit(s.getInputRepresentation(), qVal);
+                } else {
+                    if (experience.size() < experienceBuffer) {
+                        //Fill Buffer
+                        experience.add(new Memory(s, action, reward, new_s));
+                        double q = qVal.getDouble(a);
+                        double update = (new_s.isFinal()) ? reward : q + alpha * (reward + (gamma * maxQ) - q);
+                        qVal.putScalar(a, update);
+                        model.fit(s.getInputRepresentation(), qVal);
+                    }
+                    else {
+                        Collections.shuffle(experience);
+                        experience.set(0, new Memory(s, action, reward, new_s));
+                        INDArray inputList = Nd4j.zeros(batchsize, stateFactory.getInputLength());
+                        INDArray outputList = Nd4j.zeros(batchsize, actionFactory.getNumberOfActions());
+                        for (int j = 0; j < batchsize; j++) {
 
-                }else {
-                    Collections.shuffle(experience);
-                    experience.set(0,new Memory(s,action, reward ,new_s));
-                    INDArray inputList = Nd4j.zeros(batchsize, stateFactory.getInputLength());
-                    INDArray outputList = Nd4j.zeros(batchsize, actionFactory.getNumberOfActions());
-                    for (int j = 0; j < batchsize; j++) {
-
-                        Memory memory = experience.get(j);
-                        INDArray mQVal = model.output(memory.state.getInputRepresentation());
-                        INDArray mNewQVal = model.output(memory.newState.getInputRepresentation());
-                        double mMaxQ = newQVal.maxNumber().doubleValue();
-                        double mReward = memory.newState.getReward();
-                        double q = mQVal.getDouble(memory.action.getType());
-                        double update = (memory.newState.isFinal()) ? mReward : q + alpha * (mReward + (gamma * mMaxQ) - q);
-                        mQVal.putScalar(a, update);
-                        inputList.putRow(j,memory.state.getInputRepresentation());
-                        outputList.putRow(j,mQVal);
-                        model.fit(inputList,outputList);
+                            Memory memory = experience.get(j);
+                            INDArray mQVal = model.output(memory.state.getInputRepresentation());
+                            INDArray mNewQVal = model.output(memory.newState.getInputRepresentation());
+                            double mMaxQ = newQVal.maxNumber().doubleValue();
+                            double mReward = memory.newState.getReward();
+                            double q = mQVal.getDouble(memory.action.getType());
+                            double update =
+                                (memory.newState.isFinal()) ? mReward : q + alpha * (mReward + (gamma * mMaxQ) - q);
+                            mQVal.putScalar(memory.action.getType(), update);
+                            inputList.putRow(j, memory.state.getInputRepresentation());
+                            outputList.putRow(j, mQVal);
+                        }
+                        model.fit(inputList, outputList);
                     }
                 }
 
                 s = new_s;
-                if (epsilon > 0.1) {
+                if (epsilon > endEpsilon) {
                     epsilon -= (1.0 / pNumEpochs);
                 }
             }

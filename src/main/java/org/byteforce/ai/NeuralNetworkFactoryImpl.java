@@ -47,11 +47,11 @@ public class NeuralNetworkFactoryImpl
                 .nIn(164)
                 .nOut(150)
                 .build())
-            .layer(2, new DenseLayer.Builder() //create the second input layer
-                .nIn(150)
-                .nOut(150)
-                .build())
-            .layer(3, new OutputLayer.Builder(LossFunctions.LossFunction.MSE) //create hidden layer
+            // .layer(2, new DenseLayer.Builder() //create the second input layer
+            //     .nIn(150)
+            //     .nOut(150)
+            //     .build())
+            .layer(2, new OutputLayer.Builder(LossFunctions.LossFunction.MSE) //create hidden layer
                 .activation(Activation.IDENTITY)
                 .nIn(150)
                 .nOut(pOutputLength)

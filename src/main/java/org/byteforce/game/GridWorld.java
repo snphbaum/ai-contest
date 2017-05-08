@@ -258,8 +258,8 @@ public class GridWorld
         StateFactory stateFactory = new GridWorldRandomStateFactory();
         NeuralNetworkFactory networkFactory = new NeuralNetworkFactoryImpl();
         DeepQLearning dql = new DeepQLearning(actionFactory, stateFactory, networkFactory);
-        dql.learn(10000);
-        dql.play(10000, false);
+        dql.learn(50000);
+        dql.play(50000, false);
 
     }
 }
