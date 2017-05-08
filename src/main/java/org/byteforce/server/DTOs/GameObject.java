@@ -1,7 +1,5 @@
 package org.byteforce.server.DTOs;
 
-import java.io.Serializable;
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -13,7 +11,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY)
 @JsonSubTypes({@JsonSubTypes.Type(value = Player.class, name = "Player"),
-    @JsonSubTypes.Type(value = DestructibleWall.class, name = "DestructibleWall"),
+    @JsonSubTypes.Type(value = Crate.class, name = "Crate"),
     @JsonSubTypes.Type(value = Wall.class, name = "Wall"), @JsonSubTypes.Type(value = Bomb.class, name = "Bomb")})
 public class GameObject
 {

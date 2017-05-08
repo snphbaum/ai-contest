@@ -21,7 +21,7 @@ public class GridWorld
         StateFactory stateFactory = new GridWorldRandomStateFactory();
         NeuralNetworkFactory networkFactory = new NeuralNetworkFactoryImpl();
         DeepQLearning dql = new DeepQLearning(actionFactory, stateFactory, networkFactory);
-        dql.configureExperienceReplay(40,100,99);
+        dql.configureExperienceReplay(40,100,100);
         dql.learn(50000);
         dql.play(50000, false);
 

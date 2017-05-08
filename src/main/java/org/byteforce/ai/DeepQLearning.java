@@ -126,6 +126,7 @@ public class DeepQLearning
                 //Experience replay
                 // FIrst we train the model without replay as that is very slow
                 //TODO rewrite if cascade without duplicate code
+                //TODO debug experience replay as this actually leads to worse results
                 if(i < numEpochsWithoutReplay) {
                     double q = qVal.getDouble(a);
                     double update = (new_s.isFinal()) ? reward : q + alpha * (reward + (gamma * maxQ) - q);

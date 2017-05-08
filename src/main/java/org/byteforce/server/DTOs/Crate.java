@@ -3,7 +3,7 @@ package org.byteforce.server.DTOs;
 /**
  * @author Philipp Baumgaertel
  */
-public class DestructibleWall
+public class Crate
     extends GameObject
 {
 
