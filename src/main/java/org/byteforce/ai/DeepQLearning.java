@@ -36,7 +36,7 @@ public class DeepQLearning
 
     private int batchsize = 40;
     private int experienceBuffer = 100;
-    private int percentEpochsWithoutReplay = 100;
+    private int percentEpochsWithoutReplay = 95;
     private double epsilon = 1; // 1 = exploration (random), 0 = exploitation (use model), gets decreased during learning
     private double gamma = 0.9; // eagerness 0 = prioritize early rewards, 1 = late rewards
     private double alpha = 0.1; // learning rate of the q learner
@@ -57,7 +57,7 @@ public class DeepQLearning
      * @param pBatchsize Defines how many memories get replayed during experience replay (Default: 40)
      * @param pExperienceBuffer Defines how many memories are stored as experience (Default: 100)
      * @param pPercentEpochsWithoutReplay Defines how many epochs (in percent) are played without replay.
-     *        This is for performance reasons as the replay is very slow (Default: 99)
+     *        This is for performance reasons as the replay is very slow (Default: 95)
      */
     public void configureExperienceReplay(int pBatchsize, int pExperienceBuffer, int pPercentEpochsWithoutReplay){
         batchsize = pBatchsize;

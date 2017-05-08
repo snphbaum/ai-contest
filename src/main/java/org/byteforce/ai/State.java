@@ -1,8 +1,5 @@
 package org.byteforce.ai;
 
-import java.util.Random;
-
-import org.byteforce.game.GridWorld;
 import org.nd4j.linalg.api.ndarray.INDArray;
 
 
