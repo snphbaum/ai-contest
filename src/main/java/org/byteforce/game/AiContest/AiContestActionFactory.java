@@ -1,5 +1,9 @@
 package org.byteforce.game.AiContest;
 
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.byteforce.ai.Action;
 import org.byteforce.ai.ActionFactory;
 
@@ -11,24 +15,20 @@ public class AiContestActionFactory
     implements ActionFactory
 {
 
+
+    private static final Map<Integer,AiContestAction> lookup
+        = new HashMap<Integer,AiContestAction>();
+
+    static {
+        for(AiContestAction s : EnumSet.allOf(AiContestAction.class)) {
+            lookup.put(s.getType(), s);
+        }
+    }
+
     @Override
     public Action get(final int i)
     {
-        if (i == 0) {
-            return AiContestAction.UP;
-        }
-        else if (i == 1) {
-            return AiContestAction.DOWN;
-        }
-        else if (i == 2) {
-            return AiContestAction.LEFT;
-        }
-        else if (i == 3) {
-            return AiContestAction.RIGHT;
-        }
-        else {
-            return AiContestAction.DROP;
-        }
+        return lookup.get(i);
     }
 
     @Override
