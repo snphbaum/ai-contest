@@ -11,10 +11,16 @@ public class AiContestStateFactory
     implements StateFactory
 {
 
+    LocalGameServerImpl gameServer;
+
+    public AiContestStateFactory(LocalGameServerImpl pGameServer){
+        gameServer = pGameServer;
+    }
+
     @Override
     public State getState()
     {
-        return new AiContestState();
+        return new AiContestState(gameServer);
     }
 
 

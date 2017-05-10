@@ -21,6 +21,8 @@ public class AiContestState
 
     static final int FIELD_HEIGHT = 7;
 
+    static final int MAX_TICKS = 3;
+
     static final int OBJECT_TYPES = 12; //(ObjectTypes + 3 extra layers per bomb for ticking)
 
 
@@ -131,6 +133,39 @@ public class AiContestState
 
 
 
+        static int getLayerForPlayer(int playerNum)
+        {
+            if (playerNum == 0) {
+                return PLAYER1.type;
+            }
+            else if (playerNum == 1) {
+                return PLAYER2.type;
+            }
+            else {
+                throw new RuntimeException("Player type " + playerNum + " not implemented");
+            }
+        }
+
+
+
+        static int getLayerForBomb(int playerNum, int ticksElapsed)
+        {
+            if (ticksElapsed > 3) {
+                throw new RuntimeException("getLayerForBomb: ticksElapsed too large");
+            }
+            if (playerNum == 0) {
+                return BOMB1_3.type + ticksElapsed;
+            }
+            else if (playerNum == 1) {
+                return BOMB2_3.type + ticksElapsed;
+            }
+            else {
+                throw new RuntimeException("Player type " + playerNum + " not implemented");
+            }
+        }
+
+
+
         static ObjectType get(int i)
         {
             return lookup.get(i);
@@ -143,18 +178,20 @@ public class AiContestState
     //In a grid for the AI and in special classes for evaluating the state
     INDArray grid;
 
-    Player player1;
+    Player[] player;
 
-    Player player2;
+    Bomb[] bomb;
 
-    Bomb bomb1;
-
-    Bomb bomb2;
+    LocalGameServerImpl gameServer;
 
 
 
-    public AiContestState()
+    public AiContestState(LocalGameServerImpl pGameServer)
     {
+        player = new Player[2];
+        bomb = new Bomb[2];
+
+        gameServer = pGameServer;
         //TODO optionally create random crates
         grid = Nd4j.zeros(FIELD_HEIGHT, FIELD_WIDTH,
             OBJECT_TYPES);  //X x Y x (ObjectTypes + 3 extra layers per bomb for ticking)
@@ -180,26 +217,30 @@ public class AiContestState
         // Putting the players in opposite corners
         grid.putScalar(new int[]{0, 0, ObjectType.PLAYER1.type}, 1);
         grid.putScalar(new int[]{6, 6, ObjectType.PLAYER2.type}, 1);
-        player1 = new Player(0, 0);
-        player2 = new Player(6, 6);
+        player[0] = new Player(0, 0);
+        player[1] = new Player(6, 6);
     }
 
 
 
-    AiContestState(INDArray pGrid, Player pPlayer1, Player pPlayer2, Bomb pBomb1, Bomb pBomb2)
+    AiContestState(INDArray pGrid, Player pPlayer1, Player pPlayer2, Bomb pBomb1, Bomb pBomb2, LocalGameServerImpl pGameServer)
     {
+        player = new Player[2];
+        bomb = new Bomb[2];
         grid = pGrid;
-        player1 = pPlayer1;
-        player2 = pPlayer2;
-        bomb1 = pBomb1;
-        bomb2 = pBomb2;
+        player[0] = pPlayer1;
+        player[1] = pPlayer2;
+        bomb[0] = pBomb1;
+        bomb[1] = pBomb2;
+        gameServer = pGameServer;
     }
 
 
 
     public State copy()
     {
-        return new AiContestState(grid.dup(), player1.copy(), player2.copy(), bomb1.copy(), bomb2.copy());
+        return new AiContestState(grid.dup(), player[0].copy(), player[1].copy(), bomb[0].copy(), bomb[1].copy(),
+            gameServer);
     }
 
 
@@ -207,13 +248,13 @@ public class AiContestState
     public double getReward()
     {
         //-10 for loosing when you are too close to an exploding bomb
-        if (grid.getInt(player1.y, player1.x, ObjectType.BOMB1_0.type) == 1 || grid.getInt(player1.y, player1.x,
+        if (grid.getInt(player[0].y, player[0].x, ObjectType.BOMB1_0.type) == 1 || grid.getInt(player[0].y, player[0].x,
             ObjectType.BOMB2_0.type) == 1) {
             return -10;
         }
         //10 for winning when the opponent is too close to an exploding bomb
-        else if ((grid.getInt(player2.y, player2.x, ObjectType.BOMB1_0.type) == 1 || grid.getInt(player2.y, player2.x,
-            ObjectType.BOMB2_0.type) == 1)) {
+        else if ((grid.getInt(player[1].y, player[1].x, ObjectType.BOMB1_0.type) == 1 || grid.getInt(player[1].y,
+            player[1].x, ObjectType.BOMB2_0.type) == 1)) {
             return 10;
         }
         else {
@@ -247,13 +288,14 @@ public class AiContestState
 
 
 
-    private void handlePos(int y, int x, AiContestState newState, Bomb bomb)
+    private void handlePos(int y, int x, AiContestState newState, int playerNum)
     {
         if (y >= 0 && y < FIELD_HEIGHT && x >= 0 && x < FIELD_WIDTH && newState.grid.getInt(y, x, ObjectType.WALL.type)
             != 1) {
             // No wall in between
-            if (newState.grid.getInt(bomb.y + (y - bomb.y) / 2, bomb.x + (x - bomb.x) / 2, ObjectType.WALL.type) != 1) {
-                newState.grid.putScalar(new int[]{y, x, ObjectType.BOMB1_0.type}, 1);
+            if (newState.grid.getInt(newState.bomb[playerNum].y + (y - newState.bomb[playerNum].y) / 2,
+                newState.bomb[playerNum].x + (x - newState.bomb[playerNum].x) / 2, ObjectType.WALL.type) != 1) {
+                newState.grid.putScalar(new int[]{y, x, ObjectType.getLayerForBomb(playerNum, MAX_TICKS)}, 1);
                 newState.grid.putScalar(new int[]{y, x, ObjectType.CRATE.type}, 0);
             }
         }
@@ -261,10 +303,98 @@ public class AiContestState
 
 
 
-    private void cleanPos(int y, int x, AiContestState newState)
+    private void cleanPos(int y, int x, AiContestState newState, int playerNum)
     {
-        if (y >= 0 && y < FIELD_HEIGHT && x >= 0 && y < FIELD_WIDTH) {
-            newState.grid.putScalar(new int[]{y, x, ObjectType.BOMB1_0.type}, 0);
+        if (y >= 0 && y < FIELD_HEIGHT && x >= 0 && x < FIELD_WIDTH) {
+            newState.grid.putScalar(new int[]{y, x, ObjectType.getLayerForBomb(playerNum, MAX_TICKS)}, 0);
+        }
+    }
+
+
+
+    private void handleBombForPlayer(AiContestState newState, int playerNum)
+    {
+        if (newState.bomb[playerNum] != null) {
+            if (newState.bomb[playerNum].isExploded()) {
+                //Erase explosion
+                newState.grid.putScalar(
+                    new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, MAX_TICKS)},
+                    0);
+                for (int i = 1; i < 3; i++) {
+                    cleanPos(newState.bomb[playerNum].y - i, newState.bomb[playerNum].x, newState, playerNum);
+                    cleanPos(newState.bomb[playerNum].y + i, newState.bomb[playerNum].x, newState, playerNum);
+                    cleanPos(newState.bomb[playerNum].y, newState.bomb[playerNum].x - i, newState, playerNum);
+                    cleanPos(newState.bomb[playerNum].y, newState.bomb[playerNum].x + i, newState, playerNum);
+                }
+                newState.bomb[playerNum] = null;
+            }
+            else {
+                newState.bomb[playerNum].tick();
+                newState.grid.putScalar(
+                    new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, 2)},
+                    newState.grid
+                        .getInt(newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, 1)));
+                newState.grid.putScalar(
+                    new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, 1)},
+                    newState.grid
+                        .getInt(newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, 0)));
+                newState.grid.putScalar(
+                    new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, 0)}, 0);
+                if (newState.bomb[playerNum].isExploded()) {
+                    //calculate explosion
+                    newState.grid.putScalar(new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, MAX_TICKS)},
+                        1);
+                    for (int i = 1; i < 3; i++) {
+                        handlePos(newState.bomb[playerNum].y - i, newState.bomb[playerNum].x, newState, playerNum);
+                        handlePos(newState.bomb[playerNum].y + i, newState.bomb[playerNum].x, newState, playerNum);
+                        handlePos(newState.bomb[playerNum].y, newState.bomb[playerNum].x - i, newState, playerNum);
+                        handlePos(newState.bomb[playerNum].y, newState.bomb[playerNum].x + i, newState, playerNum);
+                    }
+                }
+            }
+        }
+    }
+
+
+
+    private void handleActionForPlayer(AiContestState newState, Action action, int playerNum)
+    {
+        if (action.getType() == AiContestAction.UP.getType() && player[playerNum].y > 0 && grid.getInt(
+            player[playerNum].y - 1, player[playerNum].x, ObjectType.WALL.type) < 1 && grid.getInt(
+            player[playerNum].y - 1, player[playerNum].x, ObjectType.CRATE.type) < 1) {
+            newState.grid.putScalar(new int[]{player[playerNum].y, player[playerNum].x, ObjectType.getLayerForPlayer(playerNum)}, 0);
+            newState.grid.putScalar(new int[]{player[playerNum].y - 1, player[playerNum].x, ObjectType.getLayerForPlayer(playerNum)},
+                1);
+            newState.player[playerNum].y--;
+        }
+        else if (action.getType() == AiContestAction.DOWN.getType() && player[playerNum].y < FIELD_HEIGHT - 1
+            && grid.getInt(player[playerNum].y + 1, player[playerNum].x, ObjectType.WALL.type) < 1 && grid.getInt(
+            player[playerNum].y + 1, player[playerNum].x, ObjectType.CRATE.type) < 1) {
+            newState.grid.putScalar(new int[]{player[playerNum].y, player[playerNum].x, ObjectType.getLayerForPlayer(playerNum)}, 0);
+            newState.grid.putScalar(new int[]{player[playerNum].y + 1, player[playerNum].x, ObjectType.getLayerForPlayer(playerNum)},
+                1);
+            newState.player[playerNum].y++;
+        }
+        else if (action.getType() == AiContestAction.LEFT.getType() && player[playerNum].x > 0 && grid.getInt(
+            player[playerNum].y, player[playerNum].x - 1, ObjectType.WALL.type) < 1 && grid.getInt(player[playerNum].y,
+            player[playerNum].x - 1, ObjectType.CRATE.type) < 1) {
+            newState.grid.putScalar(new int[]{player[playerNum].y, player[playerNum].x, ObjectType.getLayerForPlayer(playerNum)}, 0);
+            newState.grid.putScalar(new int[]{player[playerNum].y, player[playerNum].x - 1, ObjectType.getLayerForPlayer(playerNum)},
+                1);
+            newState.player[playerNum].x--;
+        }
+        else if (action.getType() == AiContestAction.RIGHT.getType() && player[playerNum].x < FIELD_WIDTH - 1
+            && grid.getInt(player[playerNum].y, player[playerNum].x + 1, ObjectType.WALL.type) < 1 && grid.getInt(
+            player[playerNum].y, player[playerNum].x + 1, ObjectType.CRATE.type) < 1) {
+            newState.grid.putScalar(new int[]{player[playerNum].y, player[playerNum].x, ObjectType.getLayerForPlayer(playerNum)}, 0);
+            newState.grid.putScalar(new int[]{player[playerNum].y, player[playerNum].x + 1, ObjectType.getLayerForPlayer(playerNum)},
+                1);
+            newState.player[playerNum].x++;
+        }
+        else if (action.getType() == AiContestAction.DROP.getType() && newState.bomb[playerNum] == null) {
+            newState.bomb[playerNum] = new Bomb(player[playerNum].y, player[playerNum].x);
+            newState.grid.putScalar(
+                new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, 0)}, 1);
         }
     }
 
@@ -272,73 +402,15 @@ public class AiContestState
 
     public State move(Action action)
     {
-        AiContestState newState = new AiContestState(grid.dup(), player1.copy(), player2.copy(), bomb1, bomb2);
+        AiContestState newState = new AiContestState(grid.dup(), player[0].copy(), player[1].copy(),
+            (bomb[0] != null) ? bomb[0].copy() : null, (bomb[1] != null) ? bomb[1].copy() : null, gameServer);
+        Action adversaryAction = gameServer.exchangeAction(action);
 
-        if (bomb1 != null) {
-            if (bomb1.isExploded()) {
-                //Erase explosion
-                newState.grid.putScalar(new int[]{bomb1.y, bomb1.x, ObjectType.BOMB1_0.type}, 0);
-                for (int i = 1; i < 3; i++) {
-                    cleanPos(bomb1.y - i, bomb1.x, newState);
-                    cleanPos(bomb1.y + i, bomb1.x, newState);
-                    cleanPos(bomb1.y, bomb1.x - i, newState);
-                    cleanPos(bomb1.y, bomb1.x + i, newState);
-                }
-                bomb1 = null;
-            }
-            else {
-                bomb1.tick();
-                newState.grid.putScalar(new int[]{bomb1.y, bomb1.x, ObjectType.BOMB1_1.type},
-                    newState.grid.getInt(bomb1.y, bomb1.x, ObjectType.BOMB1_2.type));
-                newState.grid.putScalar(new int[]{bomb1.y, bomb1.x, ObjectType.BOMB1_2.type},
-                    newState.grid.getInt(bomb1.y, bomb1.x, ObjectType.BOMB1_3.type));
-                newState.grid.putScalar(new int[]{bomb1.y, bomb1.x, ObjectType.BOMB1_3.type}, 0);
-                if (bomb1.isExploded()) {
-                    //calculate explosion
-                    newState.grid.putScalar(new int[]{bomb1.y, bomb1.x, ObjectType.BOMB1_0.type}, 1);
-                    for (int i = 1; i < 3; i++) {
-                        handlePos(bomb1.y - i, bomb1.x, newState, bomb1);
-                        handlePos(bomb1.y + i, bomb1.x, newState, bomb1);
-                        handlePos(bomb1.y, bomb1.x - i, newState, bomb1);
-                        handlePos(bomb1.y, bomb1.x + i, newState, bomb1);
-                    }
-                }
-            }
-        }
+        handleBombForPlayer(newState, 0);
+        handleBombForPlayer(newState, 1);
+        handleActionForPlayer(newState, action, 0);
+        handleActionForPlayer(newState, adversaryAction, 1);
 
-        if (action.getType() == AiContestAction.UP.getType() && player1.y > 0 && grid.getInt(player1.y - 1, player1.x,
-            ObjectType.WALL.type) < 1 && grid.getInt(player1.y - 1, player1.x, ObjectType.CRATE.type) < 1) {
-            newState.grid.putScalar(new int[]{player1.y, player1.x, ObjectType.PLAYER1.type}, 0);
-            newState.grid.putScalar(new int[]{player1.y - 1, player1.x, ObjectType.PLAYER1.type}, 1);
-            newState.player1.y--;
-        }
-        else if (action.getType() == AiContestAction.DOWN.getType() && player1.y < FIELD_HEIGHT - 1 && grid.getInt(
-            player1.y + 1, player1.x, ObjectType.WALL.type) < 1 && grid.getInt(player1.y + 1, player1.x,
-            ObjectType.CRATE.type) < 1) {
-            newState.grid.putScalar(new int[]{player1.y, player1.x, ObjectType.PLAYER1.type}, 0);
-            newState.grid.putScalar(new int[]{player1.y + 1, player1.x, ObjectType.PLAYER1.type}, 1);
-            newState.player1.y++;
-        }
-        else if (action.getType() == AiContestAction.LEFT.getType() && player1.x > 0 && grid.getInt(player1.y,
-            player1.x - 1, ObjectType.WALL.type) < 1 && grid.getInt(player1.y, player1.x - 1, ObjectType.CRATE.type)
-            < 1) {
-            newState.grid.putScalar(new int[]{player1.y, player1.x, ObjectType.PLAYER1.type}, 0);
-            newState.grid.putScalar(new int[]{player1.y, player1.x - 1, ObjectType.PLAYER1.type}, 1);
-            newState.player1.x--;
-        }
-        else if (action.getType() == AiContestAction.RIGHT.getType() && player1.x < FIELD_WIDTH - 1 && grid.getInt(
-            player1.y, player1.x + 1, ObjectType.WALL.type) < 1 && grid.getInt(player1.y, player1.x + 1,
-            ObjectType.CRATE.type) < 1) {
-            newState.grid.putScalar(new int[]{player1.y, player1.x, ObjectType.PLAYER1.type}, 0);
-            newState.grid.putScalar(new int[]{player1.y, player1.x + 1, ObjectType.PLAYER1.type}, 1);
-            newState.player1.x++;
-        }
-        else if (action.getType() == AiContestAction.DROP.getType() && bomb1 == null) {
-            bomb1 = new Bomb(player1.y, player1.x);
-            newState.bomb1 = bomb1;
-            newState.grid.putScalar(new int[]{bomb1.y, bomb1.x, ObjectType.BOMB1_3.type}, 1);
-        }
-        // TODO: the enemy also needs to make a move
         return newState;
     }
 
