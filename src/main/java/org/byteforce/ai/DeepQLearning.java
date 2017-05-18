@@ -34,64 +34,89 @@ public class DeepQLearning
 
     private NeuralNetworkFactory networkFactory;
 
+    private GameServer gameServer;
+
     private int batchsize = 40;
+
     private int experienceBuffer = 100;
+
     private int percentEpochsWithoutReplay = 95;
-    private double epsilon = 1; // 1 = exploration (random), 0 = exploitation (use model), gets decreased during learning
+
+    private double epsilon = 1;
+        // 1 = exploration (random), 0 = exploitation (use model), gets decreased during learning
+
     private double gamma = 0.9; // eagerness 0 = prioritize early rewards, 1 = late rewards
+
     private double alpha = 0.1; // learning rate of the q learner
+
     private double endEpsilon = 0.1; // End value for the decrease of epsilon
 
-    public DeepQLearning(ActionFactory pActionFactory, StateFactory pStateFactory, NeuralNetworkFactory pNetworkFactory)
+    private int player;
+
+    public DeepQLearning(ActionFactory pActionFactory, StateFactory pStateFactory, NeuralNetworkFactory pNetworkFactory,
+        GameServer pGameServer, int pPlayer)
     {
         actionFactory = pActionFactory;
         stateFactory = pStateFactory;
         networkFactory = pNetworkFactory;
+        gameServer = pGameServer;
+        player = pPlayer;
         model = networkFactory.getNeuralNetwork(stateFactory.getInputLength(), actionFactory.getNumberOfActions());
     }
 
 
 
     /**
-     *
      * @param pBatchsize Defines how many memories get replayed during experience replay (Default: 40)
      * @param pExperienceBuffer Defines how many memories are stored as experience (Default: 100)
-     * @param pPercentEpochsWithoutReplay Defines how many epochs (in percent) are played without replay.
-     *        This is for performance reasons as the replay is very slow (Default: 95)
+     * @param pPercentEpochsWithoutReplay Defines how many epochs (in percent) are played without replay. This is for
+     * performance reasons as the replay is very slow (Default: 95)
      */
-    public void configureExperienceReplay(int pBatchsize, int pExperienceBuffer, int pPercentEpochsWithoutReplay){
+    public void configureExperienceReplay(int pBatchsize, int pExperienceBuffer, int pPercentEpochsWithoutReplay)
+    {
         batchsize = pBatchsize;
         experienceBuffer = pExperienceBuffer;
         percentEpochsWithoutReplay = pPercentEpochsWithoutReplay;
     }
 
+
+
     /**
-     *
-     * @param pStartEpsilon Start value for the exploration vs exploitation balance:
-     *        1 = exploration (random), 0 = exploitation (use model), gets decreased during learning (Default: 1)
+     * @param pStartEpsilon Start value for the exploration vs exploitation balance: 1 = exploration (random), 0 =
+     * exploitation (use model), gets decreased during learning (Default: 1)
      * @param pEndEpsilon End value for the exploration vs exploitation balance. The balance gets decreased linearly.
-     *        (Default: 0.1)
+     * (Default: 0.1)
      * @param pAlpha Learning rate of the q learner (Default: 0.1)
      * @param pGamma Eagerness: 0 = prioritize early rewards, 1 = late rewards (Default: 0.9)
      */
-    public void configureLearning(double pStartEpsilon, double pEndEpsilon, double pAlpha, double pGamma){
+    public void configureLearning(double pStartEpsilon, double pEndEpsilon, double pAlpha, double pGamma)
+    {
         epsilon = pStartEpsilon;
         endEpsilon = pEndEpsilon;
         alpha = pAlpha;
         gamma = pGamma;
     }
 
+
+
     private class Memory
     {
-        Memory(State pState, Action pAction, double pReward, State pNewState){
+        Memory(State pState, Action pAction, double pReward, State pNewState)
+        {
             state = pState;
             action = pAction;
             reward = pReward;
             newState = pNewState;
         }
+
+
+
         State state;
+
         Action action;
+
         double reward;
+
         State newState;
     }
 
@@ -102,7 +127,7 @@ public class DeepQLearning
         // TODO experiment with experience replay
         // TODO implement prioritized experience replay (with bad predicted value vs real value difference)
         Random rand = new Random();
-        int numEpochsWithoutReplay = pNumEpochs*percentEpochsWithoutReplay/100;
+        int numEpochsWithoutReplay = pNumEpochs * percentEpochsWithoutReplay / 100;
         List<Memory> experience = new ArrayList<>(batchsize);
         // http://outlace.com/rlpart3.html
         // Learn
@@ -118,7 +143,7 @@ public class DeepQLearning
                     a = Nd4j.argMax(qVal).getInt(0);
                 }
                 Action action = actionFactory.get(a);
-                State new_s = s.move(action);
+                State new_s = gameServer.doAction(action, s); // .move(action);
 
                 INDArray newQVal = model.output(new_s.getInputRepresentation());
                 double maxQ = newQVal.maxNumber().doubleValue();
@@ -127,12 +152,13 @@ public class DeepQLearning
                 // FIrst we train the model without replay as that is very slow
                 //TODO rewrite if cascade without duplicate code
                 //TODO debug experience replay as this actually leads to worse results
-                if(i < numEpochsWithoutReplay) {
+                if (i < numEpochsWithoutReplay) {
                     double q = qVal.getDouble(a);
                     double update = (new_s.isFinal()) ? reward : q + alpha * (reward + (gamma * maxQ) - q);
                     qVal.putScalar(a, update);
                     model.fit(s.getInputRepresentation(), qVal);
-                } else {
+                }
+                else {
                     if (experience.size() < experienceBuffer) {
                         //Fill Buffer
                         experience.add(new Memory(s, action, reward, new_s));
@@ -186,8 +212,8 @@ public class DeepQLearning
             while (!s.isFinal()) {
                 INDArray qVal = model.output(s.getInputRepresentation());
                 int a = Nd4j.argMax(qVal).getInt(0);
-                State new_s = s.move(actionFactory.get(a));
-
+                //State new_s = s.move(actionFactory.get(a));
+                State new_s = gameServer.doAction(actionFactory.get(a), s);
                 double reward = new_s.getReward();
                 if (showSteps) {
                     s.print();

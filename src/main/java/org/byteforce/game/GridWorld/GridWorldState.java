@@ -152,6 +152,16 @@ public class GridWorldState implements State
         return newGridworldState;
     }
 
+
+
+    @Override
+    public State move(final Action actionPlayer0, final Action actionPlayer1)
+    {
+        return move(actionPlayer0);
+    }
+
+
+
     public void print() {
         for(int y = 0; y < 4; y++){
             for(int x = 0; x < 4; x++){

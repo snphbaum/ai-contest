@@ -1,5 +1,6 @@
 package org.byteforce.game.AiContest;
 
+import org.byteforce.ai.AdversarialGameServer;
 import org.byteforce.ai.State;
 import org.byteforce.ai.StateFactory;
 
@@ -11,16 +12,12 @@ public class AiContestStateFactory
     implements StateFactory
 {
 
-    LocalGameServerImpl gameServer;
 
-    public AiContestStateFactory(LocalGameServerImpl pGameServer){
-        gameServer = pGameServer;
-    }
 
     @Override
     public State getState()
     {
-        return new AiContestState(gameServer);
+        return new AiContestState();
     }
 
 

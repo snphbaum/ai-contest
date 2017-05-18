@@ -5,9 +5,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.byteforce.ai.Action;
+import org.byteforce.ai.AdversarialGameServer;
 import org.byteforce.ai.State;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 
 /**
@@ -182,16 +184,16 @@ public class AiContestState
 
     Bomb[] bomb;
 
-    LocalGameServerImpl gameServer;
 
 
 
-    public AiContestState(LocalGameServerImpl pGameServer)
+
+    public AiContestState()
     {
         player = new Player[2];
         bomb = new Bomb[2];
 
-        gameServer = pGameServer;
+
         //TODO optionally create random crates
         grid = Nd4j.zeros(FIELD_HEIGHT, FIELD_WIDTH,
             OBJECT_TYPES);  //X x Y x (ObjectTypes + 3 extra layers per bomb for ticking)
@@ -223,7 +225,7 @@ public class AiContestState
 
 
 
-    AiContestState(INDArray pGrid, Player pPlayer1, Player pPlayer2, Bomb pBomb1, Bomb pBomb2, LocalGameServerImpl pGameServer)
+    AiContestState(INDArray pGrid, Player pPlayer1, Player pPlayer2, Bomb pBomb1, Bomb pBomb2)
     {
         player = new Player[2];
         bomb = new Bomb[2];
@@ -232,15 +234,13 @@ public class AiContestState
         player[1] = pPlayer2;
         bomb[0] = pBomb1;
         bomb[1] = pBomb2;
-        gameServer = pGameServer;
     }
 
 
 
     public State copy()
     {
-        return new AiContestState(grid.dup(), player[0].copy(), player[1].copy(), bomb[0].copy(), bomb[1].copy(),
-            gameServer);
+        return new AiContestState(grid.dup(), player[0].copy(), player[1].copy(), bomb[0].copy(), bomb[1].copy());
     }
 
 
@@ -402,19 +402,21 @@ public class AiContestState
 
     public State move(Action action)
     {
+        throw new NotImplementedException();
+    }
+
+    public State move(Action actionPlayer0, Action actionPlayer1)
+    {
         AiContestState newState = new AiContestState(grid.dup(), player[0].copy(), player[1].copy(),
-            (bomb[0] != null) ? bomb[0].copy() : null, (bomb[1] != null) ? bomb[1].copy() : null, gameServer);
-        Action adversaryAction = gameServer.exchangeAction(action);
+            (bomb[0] != null) ? bomb[0].copy() : null, (bomb[1] != null) ? bomb[1].copy() : null);
 
         handleBombForPlayer(newState, 0);
         handleBombForPlayer(newState, 1);
-        handleActionForPlayer(newState, action, 0);
-        handleActionForPlayer(newState, adversaryAction, 1);
+        handleActionForPlayer(newState, actionPlayer0, 0);
+        handleActionForPlayer(newState, actionPlayer1, 1);
 
         return newState;
     }
-
-
 
     public void print()
     {

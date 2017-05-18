@@ -49,6 +49,13 @@ public interface State {
      */
     State move(Action action);
 
+    /**
+     * The state is not altered by the action, but rather a new state is returned.
+     *
+     * @param action The action to take
+     * @return The new state
+     */
+    State move(Action actionPlayer0, Action actionPlayer1);
 
 
     /**
