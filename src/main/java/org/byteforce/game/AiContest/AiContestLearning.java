@@ -1,5 +1,7 @@
 package org.byteforce.game.AiContest;
 
+import java.util.Arrays;
+
 import org.byteforce.ai.ActionFactory;
 import org.byteforce.ai.AdversarialGameServer;
 import org.byteforce.ai.DeepQLearning;
@@ -22,11 +24,13 @@ public class AiContestLearning
         // System.out.println((new CpuBlas()).getBlasVendor());
         ActionFactory actionFactory = new AiContestActionFactory();
         StateFactory stateFactory = new AiContestStateFactory();
-        NeuralNetworkFactory networkFactory = new NeuralNetworkFactoryImpl();
-        GameServer gameServer = new AdversarialGameServer(new RandomPlayer(actionFactory));
+        NeuralNetworkFactory networkFactory = new NeuralNetworkFactoryImpl(stateFactory.getInputLength(), actionFactory.getNumberOfActions(),
+            Arrays.asList(500, 300), 0.15);
+        //TODO experiment with different Architectures
+        GameServer gameServer = new AdversarialGameServer(new RandomPlayer(actionFactory), false);
         DeepQLearning dql = new DeepQLearning(actionFactory, stateFactory, networkFactory, gameServer, 0);
         dql.configureExperienceReplay(40, 100, 100);
-        dql.learn(50000);
-        dql.play(50000, false);
+        dql.learn(50000, false);
+        System.out.println("Wins: " + dql.play(50000, false)+ "%");
     }
 }

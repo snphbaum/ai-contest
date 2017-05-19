@@ -1,5 +1,7 @@
 package org.byteforce.ai;
 
+import java.util.List;
+
 import org.deeplearning4j.nn.api.OptimizationAlgorithm;
 import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
@@ -13,23 +15,37 @@ import org.nd4j.linalg.lossfunctions.LossFunctions;
 
 
 /**
- *
  * @author Philipp Baumgaertel
  */
 public class NeuralNetworkFactoryImpl
     implements NeuralNetworkFactory
 {
 
-    public MultiLayerNetwork getNeuralNetwork(int pInputLength, int pOutputLength)
+    private int inputLength;
+
+    private int outputLength;
+
+    private List<Integer> layer;
+
+    private double rate;
+
+    public NeuralNetworkFactoryImpl(int pInputLength, int pOutputLength, List<Integer> pLayer, double pLearningRate)
+    {
+        inputLength = pInputLength;
+        outputLength = pOutputLength;
+        layer = pLayer;
+        rate = pLearningRate;
+    }
+
+
+
+    public MultiLayerNetwork getNeuralNetwork()
     {
 
-        //TODO make number of layers and number of neurons configurable
-        //perhaps even a convolutional network?
         int rngSeed = 123; // random number seed for reproducibility
-        double rate = 0.0015; // learning rate of the net
-
+        int i = 0;
         // @formatter:off
-        MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
+        NeuralNetConfiguration.ListBuilder lb = new NeuralNetConfiguration.Builder()
             .seed(rngSeed) //include a random seed for reproducibility
             .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT) // use stochastic gradient descent as an optimization algorithm
             .iterations(1)
@@ -38,23 +54,25 @@ public class NeuralNetworkFactoryImpl
             .learningRate(rate) //specify the learning rate
             .updater(Updater.RMSPROP).momentum(0.98) //specify the rate of change of the learning rate.
             .regularization(true).l2(rate * 0.005) // regularize learning model
-            .list()
-            .layer(0, new DenseLayer.Builder() //create the first input layer.
-                .nIn(pInputLength) // depends on the number of possible states
-                .nOut(164)
-                .build())
-            .layer(1, new DenseLayer.Builder() //create the second input layer
-                .nIn(164)
-                .nOut(150)
-                .build())
-            // .layer(2, new DenseLayer.Builder() //create the second input layer
-            //     .nIn(150)
-            //     .nOut(150)
-            //     .build())
-            .layer(2, new OutputLayer.Builder(LossFunctions.LossFunction.MSE) //create hidden layer
+            .list();
+
+        lb = lb.layer(0, new DenseLayer.Builder() //create the first input layer.
+            .nIn(inputLength) // depends on the number of possible states
+            .nOut(layer.get(0))
+            .build());
+
+        for(i = 1; i < layer.size(); i++) {
+            lb = lb.layer(i, new DenseLayer.Builder() //create the input layers.
+            .nIn(layer.get(i-1))
+            .nOut(layer.get(i))
+            .build());
+        }
+
+         MultiLayerConfiguration conf = lb
+             .layer(i, new OutputLayer.Builder(LossFunctions.LossFunction.MSE) //create output layer
                 .activation(Activation.IDENTITY)
-                .nIn(150)
-                .nOut(pOutputLength)
+                .nIn(layer.get(i-1))
+                .nOut(outputLength)
                 .build())
             .pretrain(false).backprop(true) //use backpropagation to adjust weights
             .build();
@@ -64,5 +82,4 @@ public class NeuralNetworkFactoryImpl
         model.init();
         return model;
     }
-
 }

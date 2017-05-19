@@ -1,5 +1,7 @@
 package org.byteforce.ai;
 
+import java.util.List;
+
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 
 
@@ -8,5 +10,5 @@ import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
  */
 public interface NeuralNetworkFactory
 {
-    public MultiLayerNetwork getNeuralNetwork(int pInputLength, int pOutputLength);
+    public MultiLayerNetwork getNeuralNetwork();
 }

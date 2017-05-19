@@ -15,6 +15,7 @@ import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 public class AdversarialGameServer
     implements GameServer
 {
+    // TODO use in threaded game server
     // Exchanger<Action> exchanger = new Exchanger<Action>();
     //
     //
@@ -33,12 +34,13 @@ public class AdversarialGameServer
 
 
     Player player;
+    boolean asPlayerOne;
 
 
-
-    public AdversarialGameServer(Player pPlayer)
+    public AdversarialGameServer(Player pPlayer, boolean pAsPlayerOne)
     {
         player = pPlayer;
+        asPlayerOne = pAsPlayerOne;
     }
 
 
@@ -47,8 +49,12 @@ public class AdversarialGameServer
     public State doAction(final Action pAction, final State pOldState)
     {
         Action adversaryAction = player.getAction(pOldState);
-
-        return pOldState.move(pAction, adversaryAction);
+        if(asPlayerOne){
+            return pOldState.move(adversaryAction, pAction);
+        }
+        else {
+            return pOldState.move(pAction, adversaryAction);
+        }
 
     }
 }

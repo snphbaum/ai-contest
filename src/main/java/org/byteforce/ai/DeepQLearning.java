@@ -1,11 +1,18 @@
 package org.byteforce.ai;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
+import org.deeplearning4j.api.storage.StatsStorage;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
+import org.deeplearning4j.ui.api.UIServer;
+import org.deeplearning4j.ui.stats.StatsListener;
+import org.deeplearning4j.ui.storage.InMemoryStatsStorage;
+import org.deeplearning4j.util.ModelSerializer;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 
@@ -61,7 +68,7 @@ public class DeepQLearning
         networkFactory = pNetworkFactory;
         gameServer = pGameServer;
         player = pPlayer;
-        model = networkFactory.getNeuralNetwork(stateFactory.getInputLength(), actionFactory.getNumberOfActions());
+        model = networkFactory.getNeuralNetwork();
     }
 
 
@@ -122,8 +129,21 @@ public class DeepQLearning
 
 
 
-    public void learn(int pNumEpochs)
+    public void learn(int pNumEpochs, boolean pMonitor)
     {
+        if(pMonitor) {
+            UIServer uiServer = UIServer.getInstance();
+
+            //Configure where the network information (gradients, score vs. time etc) is to be stored. Here: store in memory.
+
+            StatsStorage statsStorage = new InMemoryStatsStorage();         //Alternative: new FileStatsStorage(File), for saving and loading later
+
+            //Attach the StatsStorage instance to the UI: this allows the contents of the StatsStorage to be visualized
+            uiServer.attach(statsStorage);
+
+            //Then add the StatsListener to collect this information from the network, as it trains
+            model.setListeners(new StatsListener(statsStorage));
+        }
         // TODO experiment with experience replay
         // TODO implement prioritized experience replay (with bad predicted value vs real value difference)
         Random rand = new Random();
@@ -196,12 +216,23 @@ public class DeepQLearning
                 }
             }
             System.out.println(i * 100.0 / pNumEpochs + "%");
+            if(i % 1000 == 0){
+                System.out.println("Wins: " + play(1000, false)+ "%");
+            }
         }
+
+        try {
+            ModelSerializer.writeModel(model, new File("MyMultiLayerNetwork.zip"), true);
+        }
+        catch (IOException pE) {
+            // TODO handle java.io.IOException
+        }
+
     }
 
 
 
-    public void play(int pNumEpochs, boolean showSteps)
+    public double play(int pNumEpochs, boolean showSteps)
     {
         //Replay
         int wins = 0;
@@ -234,6 +265,7 @@ public class DeepQLearning
                 wins++;
             }
         }
-        System.out.println("Wins: " + wins * 100.0 / pNumEpochs + "%");
+
+        return wins * 100.0 / pNumEpochs;
     }
 }

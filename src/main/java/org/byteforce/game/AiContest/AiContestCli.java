@@ -4,6 +4,7 @@ import java.util.Scanner;
 
 import org.byteforce.ai.Action;
 import org.byteforce.ai.AdversarialGameServer;
+import org.byteforce.ai.AiPlayer;
 import org.byteforce.ai.Player;
 import org.byteforce.ai.State;
 
@@ -59,8 +60,8 @@ public class AiContestCli
 
     public static void main(String[] args)
     {
-        AdversarialGameServer g = new AdversarialGameServer(new AiCliPlayer());
-
+        //AdversarialGameServer g = new AdversarialGameServer(new AiCliPlayer());
+        AdversarialGameServer g = new AdversarialGameServer(new AiPlayer(new AiContestActionFactory(),"MyMultiLayerNetwork.zip"), true);
         State s = new AiContestState();
         while (!s.isFinal()) {
             s.print();
@@ -101,10 +102,10 @@ public class AiContestCli
         }
         s.print();
         if (s.won()) {
-            System.out.println("You win!");
+            System.out.println("You loose!"); //It's the other way round, because you are player 2 here
         }
         else {
-            System.out.println("You loose!");
+            System.out.println("You win!");
         }
     }
 }
