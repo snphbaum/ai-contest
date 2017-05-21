@@ -60,7 +60,8 @@ public class AiContestCli
 
     public static void main(String[] args)
     {
-        AdversarialGameServer g = new AdversarialGameServer(new AiCliPlayer(), false);
+        //AdversarialGameServer g = new AdversarialGameServer(new AiCliPlayer(), false);
+        AdversarialGameServer g = new AdversarialGameServer(new AiContestSimplePlayer(1), false);
         //AdversarialGameServer g = new AdversarialGameServer(new AiPlayer(new AiContestActionFactory(),"MyMultiLayerNetwork.zip"), true);
         State s = new AiContestState();
         while (!s.isFinal()) {

@@ -16,9 +16,6 @@ import org.deeplearning4j.util.ModelSerializer;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 
-//TODO implement adversarial games
-
-
 
 /**
  * This class implements the learning algorithm
@@ -225,7 +222,7 @@ public class DeepQLearning
             ModelSerializer.writeModel(model, new File("MyMultiLayerNetwork.zip"), true);
         }
         catch (IOException pE) {
-            // TODO handle java.io.IOException
+            System.out.println("Could not write model");
         }
 
     }
