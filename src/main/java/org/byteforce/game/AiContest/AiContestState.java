@@ -25,7 +25,7 @@ public class AiContestState
 
     static final int MAX_TICKS = 3;
 
-    static final int OBJECT_TYPES = 12; //(ObjectTypes + 3 extra layers per bomb for ticking)
+    static final int OBJECT_TYPES = 8; //(ObjectTypes + 3 extra layers per bomb for ticking)
 
 
 
@@ -109,14 +109,10 @@ public class AiContestState
         PLAYER2(1),
         WALL(2),
         CRATE(3),
-        BOMB1_3(4),
-        BOMB1_2(5),
-        BOMB1_1(6),
-        BOMB1_0(7),
-        BOMB2_3(8),
-        BOMB2_2(9),
-        BOMB2_1(10),
-        BOMB2_0(11);
+        BOMB_3(4),
+        BOMB_2(5),
+        BOMB_1(6),
+        BOMB_0(7);
 
         int type;
 
@@ -150,20 +146,12 @@ public class AiContestState
 
 
 
-        static int getLayerForBomb(int playerNum, int ticksElapsed)
+        static int getLayerForBomb(int ticksElapsed)
         {
             if (ticksElapsed > 3) {
                 throw new RuntimeException("getLayerForBomb: ticksElapsed too large");
             }
-            if (playerNum == 0) {
-                return BOMB1_3.type + ticksElapsed;
-            }
-            else if (playerNum == 1) {
-                return BOMB2_3.type + ticksElapsed;
-            }
-            else {
-                throw new RuntimeException("Player type " + playerNum + " not implemented");
-            }
+            return BOMB_3.type + ticksElapsed;
         }
 
 
@@ -247,15 +235,11 @@ public class AiContestState
 
     public double getReward()
     {
-        //-10 for loosing when you are too close to an exploding bomb
-        if (grid.getInt(player[0].y, player[0].x, ObjectType.BOMB1_0.type) == 1 || grid.getInt(player[0].y, player[0].x,
-            ObjectType.BOMB2_0.type) == 1) {
-            return -10;
+        if (won()) {
+            return 100;
         }
-        //10 for winning when the opponent is too close to an exploding bomb
-        else if ((grid.getInt(player[1].y, player[1].x, ObjectType.BOMB1_0.type) == 1 || grid.getInt(player[1].y,
-            player[1].x, ObjectType.BOMB2_0.type) == 1)) {
-            return 10;
+        else if (isFinal()) {
+            return -100;
         }
         else {
             return -1;
@@ -266,7 +250,8 @@ public class AiContestState
 
     public boolean isFinal()
     {
-        if (getReward() != -1) {
+        //winning or loosing when you are too close to an exploding bomb
+        if (won() || grid.getInt(player[0].y, player[0].x, ObjectType.BOMB_0.type) == 1) {
             return true;
         }
         else {
@@ -278,7 +263,8 @@ public class AiContestState
 
     public boolean won()
     {
-        if (getReward() == 10) {
+        //winning when the opponent is too close to an exploding bomb
+        if (grid.getInt(player[1].y, player[1].x, ObjectType.BOMB_0.type) == 1) {
             return true;
         }
         else {
@@ -295,7 +281,7 @@ public class AiContestState
             // No wall in between
             if (newState.grid.getInt(newState.bomb[playerNum].y + (y - newState.bomb[playerNum].y) / 2,
                 newState.bomb[playerNum].x + (x - newState.bomb[playerNum].x) / 2, ObjectType.WALL.type) != 1) {
-                newState.grid.putScalar(new int[]{y, x, ObjectType.getLayerForBomb(playerNum, MAX_TICKS)}, 1);
+                newState.grid.putScalar(new int[]{y, x, ObjectType.getLayerForBomb(MAX_TICKS)}, 1);
                 newState.grid.putScalar(new int[]{y, x, ObjectType.CRATE.type}, 0);
             }
         }
@@ -303,10 +289,17 @@ public class AiContestState
 
 
 
+    /**
+     * After the explosions are handled, the field is cleaned up
+     * @param y
+     * @param x
+     * @param newState
+     * @param playerNum
+     */
     private void cleanPos(int y, int x, AiContestState newState, int playerNum)
     {
         if (y >= 0 && y < FIELD_HEIGHT && x >= 0 && x < FIELD_WIDTH) {
-            newState.grid.putScalar(new int[]{y, x, ObjectType.getLayerForBomb(playerNum, MAX_TICKS)}, 0);
+            newState.grid.putScalar(new int[]{y, x, ObjectType.getLayerForBomb(MAX_TICKS)}, 0);
         }
     }
 
@@ -318,7 +311,7 @@ public class AiContestState
             if (newState.bomb[playerNum].isExploded()) {
                 //Erase explosion
                 newState.grid.putScalar(
-                    new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, MAX_TICKS)},
+                    new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(MAX_TICKS)},
                     0);
                 for (int i = 1; i < 3; i++) {
                     cleanPos(newState.bomb[playerNum].y - i, newState.bomb[playerNum].x, newState, playerNum);
@@ -331,18 +324,18 @@ public class AiContestState
             else {
                 newState.bomb[playerNum].tick();
                 newState.grid.putScalar(
-                    new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, 2)},
+                    new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(2)},
                     newState.grid
-                        .getInt(newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, 1)));
+                        .getInt(newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(1)));
                 newState.grid.putScalar(
-                    new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, 1)},
+                    new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(1)},
                     newState.grid
-                        .getInt(newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, 0)));
+                        .getInt(newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(0)));
                 newState.grid.putScalar(
-                    new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, 0)}, 0);
+                    new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(0)}, 0);
                 if (newState.bomb[playerNum].isExploded()) {
                     //calculate explosion
-                    newState.grid.putScalar(new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, MAX_TICKS)},
+                    newState.grid.putScalar(new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(MAX_TICKS)},
                         1);
                     for (int i = 1; i < 3; i++) {
                         handlePos(newState.bomb[playerNum].y - i, newState.bomb[playerNum].x, newState, playerNum);
@@ -394,7 +387,7 @@ public class AiContestState
         else if (action.getType() == AiContestAction.DROP.getType() && newState.bomb[playerNum] == null) {
             newState.bomb[playerNum] = new Bomb(player[playerNum].y, player[playerNum].x);
             newState.grid.putScalar(
-                new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(playerNum, 0)}, 1);
+                new int[]{newState.bomb[playerNum].y, newState.bomb[playerNum].x, ObjectType.getLayerForBomb(0)}, 1);
         }
     }
 
@@ -426,14 +419,10 @@ public class AiContestState
                 p = (grid.getInt(y, x, ObjectType.PLAYER2.type) == 1) ? '2' : p;
                 p = (grid.getInt(y, x, ObjectType.WALL.type) == 1) ? 'W' : p;
                 p = (grid.getInt(y, x, ObjectType.CRATE.type) == 1) ? 'C' : p;
-                p = (grid.getInt(y, x, ObjectType.BOMB1_3.type) == 1) ? 'B' : p;
-                p = (grid.getInt(y, x, ObjectType.BOMB1_2.type) == 1) ? 'B' : p;
-                p = (grid.getInt(y, x, ObjectType.BOMB1_1.type) == 1) ? 'B' : p;
-                p = (grid.getInt(y, x, ObjectType.BOMB1_0.type) == 1) ? 'X' : p;
-                p = (grid.getInt(y, x, ObjectType.BOMB2_3.type) == 1) ? 'B' : p;
-                p = (grid.getInt(y, x, ObjectType.BOMB2_2.type) == 1) ? 'B' : p;
-                p = (grid.getInt(y, x, ObjectType.BOMB2_1.type) == 1) ? 'B' : p;
-                p = (grid.getInt(y, x, ObjectType.BOMB2_0.type) == 1) ? 'X' : p;
+                p = (grid.getInt(y, x, ObjectType.BOMB_3.type) == 1) ? 'B' : p;
+                p = (grid.getInt(y, x, ObjectType.BOMB_2.type) == 1) ? 'B' : p;
+                p = (grid.getInt(y, x, ObjectType.BOMB_1.type) == 1) ? 'B' : p;
+                p = (grid.getInt(y, x, ObjectType.BOMB_0.type) == 1) ? 'X' : p;
                 if (x == 0) {
                     System.out.print("|");
                 }
