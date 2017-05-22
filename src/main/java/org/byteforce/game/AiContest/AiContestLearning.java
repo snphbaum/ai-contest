@@ -26,8 +26,10 @@ public class AiContestLearning
         StateFactory stateFactory = new AiContestStateFactory();
         NeuralNetworkFactory networkFactory = new NeuralNetworkFactoryImpl(stateFactory.getInputLength(), actionFactory.getNumberOfActions(),
             Arrays.asList(500, 300), 0.15);
-        //TODO experiment with different Architectures
-        GameServer gameServer = new AdversarialGameServer(new RandomPlayer(actionFactory), false);
+        //TODO experiment with different Networkarchitectures
+        //GameServer gameServer = new AdversarialGameServer(new RandomPlayer(actionFactory), false);
+        GameServer gameServer = new AdversarialGameServer(new AiContestSimplePlayer(1), false);
+
         DeepQLearning dql = new DeepQLearning(actionFactory, stateFactory, networkFactory, gameServer, 0);
         dql.configureExperienceReplay(40, 100, 100);
         dql.learn(50000, false);

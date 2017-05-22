@@ -25,6 +25,8 @@ public class AiContestSimplePlayer
 
     int adversaryPlayerNum;
 
+    int lastAdversaryX, lastAdversaryY;
+
 
 
     AiContestSimplePlayer(int pPlayerNum)
@@ -33,6 +35,8 @@ public class AiContestSimplePlayer
         actionFactory = new AiContestActionFactory();
         rand = new Random();
         adversaryPlayerNum = (playerNum + 1) % 2;
+        lastAdversaryX = -1;
+        lastAdversaryY = -1;
     }
 
 
@@ -42,10 +46,14 @@ public class AiContestSimplePlayer
         for (int iPlayerNum = 0; iPlayerNum < 2; iPlayerNum++) {
             if (state.bomb[iPlayerNum] != null) {
                 for (int i = 1; i < 3; i++) {
-                    handlePos(state.bomb[iPlayerNum].y - i, state.bomb[iPlayerNum].x, state, iPlayerNum, pAStar);
-                    handlePos(state.bomb[iPlayerNum].y + i, state.bomb[iPlayerNum].x, state, iPlayerNum, pAStar);
-                    handlePos(state.bomb[iPlayerNum].y, state.bomb[iPlayerNum].x - i, state, iPlayerNum, pAStar);
-                    handlePos(state.bomb[iPlayerNum].y, state.bomb[iPlayerNum].x + i, state, iPlayerNum, pAStar);
+                    checkBombLineOfSightAndSetBlocked(state.bomb[iPlayerNum].y - i, state.bomb[iPlayerNum].x, state,
+                        iPlayerNum, pAStar);
+                    checkBombLineOfSightAndSetBlocked(state.bomb[iPlayerNum].y + i, state.bomb[iPlayerNum].x, state,
+                        iPlayerNum, pAStar);
+                    checkBombLineOfSightAndSetBlocked(state.bomb[iPlayerNum].y, state.bomb[iPlayerNum].x - i, state,
+                        iPlayerNum, pAStar);
+                    checkBombLineOfSightAndSetBlocked(state.bomb[iPlayerNum].y, state.bomb[iPlayerNum].x + i, state,
+                        iPlayerNum, pAStar);
                 }
             }
         }
@@ -53,7 +61,7 @@ public class AiContestSimplePlayer
 
 
 
-    private void handlePos(int y, int x, AiContestState newState, int playerNum, AStar pAStar)
+    private void checkBombLineOfSightAndSetBlocked(int y, int x, AiContestState newState, int playerNum, AStar pAStar)
     {
         if (y >= 0 && y < AiContestState.FIELD_HEIGHT && x >= 0 && x < AiContestState.FIELD_WIDTH
             && newState.grid.getInt(y, x, AiContestState.ObjectType.WALL.type) != 1) {
@@ -91,7 +99,7 @@ public class AiContestSimplePlayer
 
         Optional<List<Pair<Integer, Integer>>> path = aStar.getShortestPath();
 
-        if (path.isPresent()) {
+        if (path.isPresent() && path.get().size() > 1) {
             if (path.get().get(1).getLeft() < state.player[playerNum].y) {
                 return AiContestAction.UP;
             }
@@ -143,10 +151,14 @@ public class AiContestSimplePlayer
         // Get closest bomb free spot
         for (int iy = -2; iy < 3; iy++) {
             for (int ix = -2; ix < 3; ix++) {
-                if (!isBombNear(state, state.player[playerNum].y + iy, state.player[playerNum].x + ix)) {
-                    if(Math.abs(ix) + Math.abs(iy) < distance){
-                        closestX = state.player[playerNum].x + ix;
-                        closestY = state.player[playerNum].y + iy;
+                if (state.player[playerNum].y + iy >= 0 && state.player[playerNum].y + iy < AiContestState.FIELD_HEIGHT
+                    && state.player[playerNum].x + ix >= 0
+                    && state.player[playerNum].x + ix < AiContestState.FIELD_WIDTH) {
+                    if (!isBombNear(state, state.player[playerNum].y + iy, state.player[playerNum].x + ix)) {
+                        if (Math.abs(ix) + Math.abs(iy) < distance) {
+                            closestX = state.player[playerNum].x + ix;
+                            closestY = state.player[playerNum].y + iy;
+                        }
                     }
                 }
             }
@@ -156,18 +168,65 @@ public class AiContestSimplePlayer
 
 
 
+    private Pair<Integer, Integer> getTarget(AiContestState state)
+    {
+        //don't go, where the other player is, go where you expect him to be
+
+        int targetX;
+        int targetY;
+        if (lastAdversaryX > 0) {
+            int dirX = state.player[adversaryPlayerNum].x - lastAdversaryX;
+            int dirY = state.player[adversaryPlayerNum].y - lastAdversaryY;
+            targetX = Math.min(Math.max(state.player[adversaryPlayerNum].x + 3 * dirX, 0),
+                AiContestState.FIELD_WIDTH - 1);
+            targetY = Math.min(Math.max(state.player[adversaryPlayerNum].y + 3 * dirY, 0),
+                AiContestState.FIELD_HEIGHT - 1);
+            if (state.grid.getInt(targetY, targetX, AiContestState.ObjectType.WALL.type) == 1 || state.grid.getInt(
+                targetY, targetX, AiContestState.ObjectType.CRATE.type) == 1) {
+                //Target position is unreachable ==> go to player directly
+                targetX = state.player[adversaryPlayerNum].x;
+                targetY = state.player[adversaryPlayerNum].y;
+            }
+        }
+        else {
+            targetX = state.player[adversaryPlayerNum].x;
+            targetY = state.player[adversaryPlayerNum].y;
+        }
+        return Pair.of(targetY, targetX);
+    }
+
+
+
+    private boolean isGoodPlaceToDropBomb(AiContestState state)
+    {
+        //Good is near the other player and on crossings
+        return (Math.abs(state.player[adversaryPlayerNum].y - state.player[playerNum].y) + Math.abs(
+            state.player[adversaryPlayerNum].x - state.player[playerNum].x) < 2) || (Math.abs(
+            state.player[adversaryPlayerNum].y - state.player[playerNum].y) + Math.abs(
+            state.player[adversaryPlayerNum].x - state.player[playerNum].x) < 3 && state.player[playerNum].y % 2 == 0
+            && state.player[playerNum].x % 2 == 0);
+    }
+
+
+
     @Override
     public Action getAction(final State pState)
     {
         AiContestState state = (AiContestState) pState;
-        //TODO don't go, where the other player is, go where you expect him to be
-        //TODO drop bombs on tactical positions
+
+        Pair<Integer, Integer> target = getTarget(state);
+
+        lastAdversaryX = state.player[adversaryPlayerNum].x;
+        lastAdversaryY = state.player[adversaryPlayerNum].y;
+
         if (isBombNear(state, state.player[playerNum].y, state.player[playerNum].x)) {
             return runFromBomb(state);
         }
+        else if (isGoodPlaceToDropBomb(state)) {
+            return AiContestAction.DROP;
+        }
         else {
-            //TODO considerBombs does not seem to be working perfectly
-            return runToPos(state.player[adversaryPlayerNum].y, state.player[adversaryPlayerNum].x, state, true);
+            return runToPos(target.getLeft(), target.getRight(), state, true);
         }
     }
 }

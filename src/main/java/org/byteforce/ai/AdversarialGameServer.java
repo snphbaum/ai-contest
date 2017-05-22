@@ -1,14 +1,5 @@
 package org.byteforce.ai;
 
-import java.util.concurrent.Exchanger;
-
-import org.byteforce.ai.Action;
-import org.byteforce.ai.GameServer;
-import org.byteforce.ai.Player;
-import org.byteforce.ai.State;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
-
-
 /**
  * @author Philipp Baumgaertel
  */
@@ -33,13 +24,13 @@ public class AdversarialGameServer
 
 
     Player player;
-    boolean asPlayerOne;
+    boolean asPlayerZero;
 
 
-    public AdversarialGameServer(Player pPlayer, boolean pAsPlayerOne)
+    public AdversarialGameServer(Player pPlayer, boolean pAsPlayerZero)
     {
         player = pPlayer;
-        asPlayerOne = pAsPlayerOne;
+        asPlayerZero = pAsPlayerZero;
     }
 
 
@@ -48,7 +39,7 @@ public class AdversarialGameServer
     public State doAction(final Action pAction, final State pOldState)
     {
         Action adversaryAction = player.getAction(pOldState);
-        if(asPlayerOne){
+        if(asPlayerZero){
             return pOldState.move(adversaryAction, pAction);
         }
         else {

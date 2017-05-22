@@ -212,7 +212,9 @@ public class DeepQLearning
                     epsilon -= (1.0 / pNumEpochs);
                 }
             }
-            System.out.println(i * 100.0 / pNumEpochs + "%");
+            if(i % 100 == 0){
+                System.out.println(i * 100.0 / pNumEpochs + "%");
+            }
             if(i % 1000 == 0){
                 System.out.println("Wins: " + play(1000, false)+ "%");
             }
