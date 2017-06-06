@@ -24,10 +24,10 @@ public class GridWorldLearning
         ActionFactory actionFactory = new GridWorldActionFactory();
         StateFactory stateFactory = new GridWorldRandomStateFactory();
         NeuralNetworkFactory networkFactory = new NeuralNetworkFactoryImpl(stateFactory.getInputLength(), actionFactory.getNumberOfActions(),
-            Arrays.asList(164, 150), 0.0015);
+            Arrays.asList(164, 150), 0.002);
         GameServer gameServer = new SinglePlayerGameServer();
-        DeepQLearning dql = new DeepQLearning(actionFactory, stateFactory, networkFactory, gameServer ,0);
-        dql.configureExperienceReplay(40,100,100);
+        DeepQLearning dql = new DeepQLearning(actionFactory, stateFactory, networkFactory, gameServer );
+        dql.configureExperienceReplay(40,100,80);
         dql.learn(50000, false);
         System.out.println("Wins: " + dql.play(50000, false)+ "%");
 

@@ -43,4 +43,13 @@ public class AiPlayer
         return actionFactory.get(a);
 
     }
+
+
+
+    @Override
+    public boolean isPlayerZero()
+    {
+        //Right now, the Ai plays always as player zero
+        return true;
+    }
 }

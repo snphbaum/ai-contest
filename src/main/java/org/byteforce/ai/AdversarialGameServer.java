@@ -1,5 +1,10 @@
 package org.byteforce.ai;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
+
+
 /**
  * @author Philipp Baumgaertel
  */
@@ -24,22 +29,30 @@ public class AdversarialGameServer
 
 
     Player player;
-    boolean asPlayerZero;
 
 
-    public AdversarialGameServer(Player pPlayer, boolean pAsPlayerZero)
+    public AdversarialGameServer(Player pPlayer)
     {
         player = pPlayer;
-        asPlayerZero = pAsPlayerZero;
     }
 
-
+    public List<Memory> playAgainst(Player pPlayer, StateFactory pStateFactory){
+        List<Memory> result = new ArrayList<>();
+        State s = pStateFactory.getState();
+        while (!s.isFinal()) {
+            Action a = pPlayer.getAction(s);
+            State new_s = doAction(a, s);
+            result.add(new Memory(s,a,s.getReward(),new_s));
+            s = new_s;
+        }
+        return result;
+    }
 
     @Override
     public State doAction(final Action pAction, final State pOldState)
     {
         Action adversaryAction = player.getAction(pOldState);
-        if(asPlayerZero){
+        if(player.isPlayerZero()){
             return pOldState.move(adversaryAction, pAction);
         }
         else {

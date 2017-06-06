@@ -54,15 +54,23 @@ public class AiContestCli
             }
             return a;
         }
+
+
+
+        @Override
+        public boolean isPlayerZero()
+        {
+            return false;
+        }
     }
 
 
 
     public static void main(String[] args)
     {
-        //AdversarialGameServer g = new AdversarialGameServer(new AiCliPlayer(), false);
-        AdversarialGameServer g = new AdversarialGameServer(new AiContestSimplePlayer(1), false);
-        //AdversarialGameServer g = new AdversarialGameServer(new AiPlayer(new AiContestActionFactory(),"MyMultiLayerNetwork.zip"), true);
+        //AdversarialGameServer g = new AdversarialGameServer(new AiCliPlayer());
+        AdversarialGameServer g = new AdversarialGameServer(new AiContestSimplePlayer(1));
+        //AdversarialGameServer g = new AdversarialGameServer(new AiPlayer(new AiContestActionFactory(),"MyMultiLayerNetwork.zip"));
         State s = new AiContestState();
         while (!s.isFinal()) {
             s.print();

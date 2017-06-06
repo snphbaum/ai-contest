@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Supplier;
+import javax.enterprise.inject.spi.Producer;
 
 import org.deeplearning4j.api.storage.StatsStorage;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
@@ -47,7 +49,7 @@ public class DeepQLearning
     private int percentEpochsWithoutReplay = 95;
 
     private double epsilon = 1;
-        // 1 = exploration (random), 0 = exploitation (use model), gets decreased during learning
+    // 1 = exploration (random), 0 = exploitation (use model), gets decreased during learning
 
     private double gamma = 0.9; // eagerness 0 = prioritize early rewards, 1 = late rewards
 
@@ -55,16 +57,16 @@ public class DeepQLearning
 
     private double endEpsilon = 0.1; // End value for the decrease of epsilon
 
-    private int player;
+
+
 
     public DeepQLearning(ActionFactory pActionFactory, StateFactory pStateFactory, NeuralNetworkFactory pNetworkFactory,
-        GameServer pGameServer, int pPlayer)
+        GameServer pGameServer)
     {
         actionFactory = pActionFactory;
         stateFactory = pStateFactory;
         networkFactory = pNetworkFactory;
         gameServer = pGameServer;
-        player = pPlayer;
         model = networkFactory.getNeuralNetwork();
     }
 
@@ -103,37 +105,53 @@ public class DeepQLearning
 
 
 
-    private class Memory
+    /**
+     * @param pExperience A list of memories for learning
+     * @param pBatchsize How large is the portion of the experience that should be used for learning
+     */
+    public void learnFromExperience(List<Memory> pExperience, int pBatchsize)
     {
-        Memory(State pState, Action pAction, double pReward, State pNewState)
-        {
-            state = pState;
-            action = pAction;
-            reward = pReward;
-            newState = pNewState;
+        int batchsize = Math.max(pBatchsize, pExperience.size());
+        INDArray inputList = Nd4j.zeros(batchsize, stateFactory.getInputLength());
+        INDArray outputList = Nd4j.zeros(batchsize, actionFactory.getNumberOfActions());
+        for (int j = 0; j < batchsize; j++) {
+
+            Memory memory = pExperience.get(j);
+            INDArray mQVal = model.output(memory.state.getInputRepresentation());
+            INDArray mNewQVal = model.output(memory.newState.getInputRepresentation());
+            double mMaxQ = mNewQVal.maxNumber().doubleValue();
+            double mReward = memory.newState.getReward();
+            double q = mQVal.getDouble(memory.action.getType());
+            double update = (memory.newState.isFinal()) ? mReward : q + alpha * (mReward + (gamma * mMaxQ) - q);
+            mQVal.putScalar(memory.action.getType(), update);
+            inputList.putRow(j, memory.state.getInputRepresentation());
+            outputList.putRow(j, mQVal);
         }
-
-
-
-        State state;
-
-        Action action;
-
-        double reward;
-
-        State newState;
+        model.fit(inputList, outputList);
     }
 
 
+    public void learnFromExperience(Supplier<List<Memory>> pSupplier, int pNumEpochs){
+        for (int i = 0; i < pNumEpochs; i++) {
+            List<Memory> experience = pSupplier.get();
+            learnFromExperience(experience, experience.size());
+            if (i % 100 == 0) {
+                System.out.println(i * 100.0 / pNumEpochs + "%");
+            }
+        }
+    }
 
     public void learn(int pNumEpochs, boolean pMonitor)
     {
-        if(pMonitor) {
+        if (pMonitor) {
             UIServer uiServer = UIServer.getInstance();
 
-            //Configure where the network information (gradients, score vs. time etc) is to be stored. Here: store in memory.
+            //Configure where the network information (gradients, score vs. time etc) is to be stored. Here: store in
+            // memory.
 
-            StatsStorage statsStorage = new InMemoryStatsStorage();         //Alternative: new FileStatsStorage(File), for saving and loading later
+            StatsStorage statsStorage =
+                new InMemoryStatsStorage();         //Alternative: new FileStatsStorage(File), for saving and loading
+            // later
 
             //Attach the StatsStorage instance to the UI: this allows the contents of the StatsStorage to be visualized
             uiServer.attach(statsStorage);
@@ -141,7 +159,6 @@ public class DeepQLearning
             //Then add the StatsListener to collect this information from the network, as it trains
             model.setListeners(new StatsListener(statsStorage));
         }
-        // TODO experiment with experience replay
         // TODO implement prioritized experience replay (with bad predicted value vs real value difference)
         Random rand = new Random();
         int numEpochsWithoutReplay = pNumEpochs * percentEpochsWithoutReplay / 100;
@@ -166,45 +183,20 @@ public class DeepQLearning
                 double maxQ = newQVal.maxNumber().doubleValue();
                 double reward = new_s.getReward();
                 //Experience replay
-                // FIrst we train the model without replay as that is very slow
-                //TODO rewrite if cascade without duplicate code
-                //TODO debug experience replay as this actually leads to worse results
-                if (i < numEpochsWithoutReplay) {
+                // First we train the model without replay as that is very slow
+                if (i < numEpochsWithoutReplay || experience.size() < experienceBuffer) {
+                    if (i >= numEpochsWithoutReplay) {
+                        experience.add(new Memory(s, action, reward, new_s));
+                    }
                     double q = qVal.getDouble(a);
                     double update = (new_s.isFinal()) ? reward : q + alpha * (reward + (gamma * maxQ) - q);
                     qVal.putScalar(a, update);
                     model.fit(s.getInputRepresentation(), qVal);
                 }
                 else {
-                    if (experience.size() < experienceBuffer) {
-                        //Fill Buffer
-                        experience.add(new Memory(s, action, reward, new_s));
-                        double q = qVal.getDouble(a);
-                        double update = (new_s.isFinal()) ? reward : q + alpha * (reward + (gamma * maxQ) - q);
-                        qVal.putScalar(a, update);
-                        model.fit(s.getInputRepresentation(), qVal);
-                    }
-                    else {
-                        Collections.shuffle(experience);
-                        experience.set(0, new Memory(s, action, reward, new_s));
-                        INDArray inputList = Nd4j.zeros(batchsize, stateFactory.getInputLength());
-                        INDArray outputList = Nd4j.zeros(batchsize, actionFactory.getNumberOfActions());
-                        for (int j = 0; j < batchsize; j++) {
-
-                            Memory memory = experience.get(j);
-                            INDArray mQVal = model.output(memory.state.getInputRepresentation());
-                            INDArray mNewQVal = model.output(memory.newState.getInputRepresentation());
-                            double mMaxQ = newQVal.maxNumber().doubleValue();
-                            double mReward = memory.newState.getReward();
-                            double q = mQVal.getDouble(memory.action.getType());
-                            double update =
-                                (memory.newState.isFinal()) ? mReward : q + alpha * (mReward + (gamma * mMaxQ) - q);
-                            mQVal.putScalar(memory.action.getType(), update);
-                            inputList.putRow(j, memory.state.getInputRepresentation());
-                            outputList.putRow(j, mQVal);
-                        }
-                        model.fit(inputList, outputList);
-                    }
+                    Collections.shuffle(experience);
+                    experience.set(0, new Memory(s, action, reward, new_s));
+                    learnFromExperience(experience, batchsize);
                 }
 
                 s = new_s;
@@ -212,11 +204,11 @@ public class DeepQLearning
                     epsilon -= (1.0 / pNumEpochs);
                 }
             }
-            if(i % 100 == 0){
+            if (i % 100 == 0) {
                 System.out.println(i * 100.0 / pNumEpochs + "%");
             }
-            if(i % 1000 == 0){
-                System.out.println("Wins: " + play(1000, false)+ "%");
+            if (i % 1000 == 0) {
+                System.out.println("Wins: " + play(1000, false) + "%");
             }
         }
 
@@ -226,7 +218,6 @@ public class DeepQLearning
         catch (IOException pE) {
             System.out.println("Could not write model");
         }
-
     }
 
 

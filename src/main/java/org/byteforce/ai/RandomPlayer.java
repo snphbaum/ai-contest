@@ -15,18 +15,27 @@ public class RandomPlayer
     implements Player
 {
 
-    Random rand;
-    ActionFactory actionFactory;
+    private Random rand;
+    private ActionFactory actionFactory;
+    private boolean isPlayerZero;
 
-    public RandomPlayer(ActionFactory pActionFactory) {
+    public RandomPlayer(ActionFactory pActionFactory, boolean pIsPlayerZero) {
         actionFactory = pActionFactory;
         rand = new Random();
-
+        isPlayerZero = pIsPlayerZero;
     }
 
     @Override
     public Action getAction(final State pState)
     {
         return actionFactory.get(rand.nextInt(actionFactory.getNumberOfActions()));
+    }
+
+
+
+    @Override
+    public boolean isPlayerZero()
+    {
+        return isPlayerZero;
     }
 }

@@ -229,4 +229,12 @@ public class AiContestSimplePlayer
             return runToPos(target.getLeft(), target.getRight(), state, true);
         }
     }
+
+
+
+    @Override
+    public boolean isPlayerZero()
+    {
+        return playerNum == 0;
+    }
 }

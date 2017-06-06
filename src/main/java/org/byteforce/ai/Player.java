@@ -6,4 +6,5 @@ package org.byteforce.ai;
 public interface Player
 {
     Action getAction(State pState);
+    boolean isPlayerZero();
 }
